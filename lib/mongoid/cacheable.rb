@@ -9,7 +9,9 @@ module Mongoid
 
     included do
       cattr_accessor :cache_timestamp_format, instance_writer: false
+      cattr_accessor :cache_versioning, instance_writer: false
       self.cache_timestamp_format = :nsec
+      self.cache_versioning = false
     end
 
     # Print out the cache key. This will append different values on the
@@ -31,6 +33,27 @@ module Mongoid
       return "#{model_key}/new" if new_record?
       return "#{model_key}/#{id}-#{updated_at.utc.to_s(cache_timestamp_format)}" if do_or_do_not(:updated_at)
       "#{model_key}/#{id}"
+    end
+
+    # Returns a cache version that can be used together with the cache key to form
+    # a recyclable caching scheme. By default, the #updated_at column is used for the
+    # cache_version, but this method can be overwritten to return something else.
+    #
+    # Note, this method will return nil if Cacheable.cache_versioning is set to
+    # +false+ (which it is by default until Rails 6.0).
+    def cache_version
+      if cache_versioning && timestamp = try(:updated_at)
+        timestamp.utc.to_s(:usec)
+      end
+    end
+
+    # Returns a cache key along with the version.
+    def cache_key_with_version
+      if version = cache_version
+        "#{cache_key}-#{version}"
+      else
+        cache_key
+      end
     end
   end
 end
